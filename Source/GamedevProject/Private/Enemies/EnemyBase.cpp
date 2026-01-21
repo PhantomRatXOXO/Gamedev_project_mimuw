@@ -68,6 +68,8 @@ void AEnemyBase::Die()
 
 void AEnemyBase::TryAttack(AActor* TargetActor)
 {
+	UE_LOG(LogTemp, Warning, TEXT("Enemy TryAttack: %s Target=%s CanAttack=%d Alive=%d"),
+		*GetName(), TargetActor ? *TargetActor->GetName() : TEXT("None"), bCanAttack ? 1 : 0, IsAlive() ? 1 : 0);
 	if (!IsAlive() || !bCanAttack || !IsValid(TargetActor))
 	{
 		return;
@@ -101,6 +103,8 @@ void AEnemyBase::TryAttack(AActor* TargetActor)
 	}
 
 	// Play montage if provided (purely cosmetic; damage timing handled via AttackDamageDelay).
+	UE_LOG(LogTemp, Warning, TEXT("Enemy AttackMontage: %s Montage=%s"),
+		*GetName(), AttackMontage ? *AttackMontage->GetName() : TEXT("None"));
 	if (AttackMontage)
 	{
 		if (USkeletalMeshComponent* MeshComp = GetMesh())

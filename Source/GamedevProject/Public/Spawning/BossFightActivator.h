@@ -8,6 +8,8 @@ class UBoxComponent;
 class AEnemySpawner;
 class AEnemyBase;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FBossDefeatedSignature);
+
 UCLASS()
 class GAMEDEVPROJECT_API ABossFightActivator : public AActor
 {
@@ -15,6 +17,9 @@ class GAMEDEVPROJECT_API ABossFightActivator : public AActor
 
 public:
 	ABossFightActivator();
+
+	UPROPERTY(BlueprintAssignable, Category="Boss|Events")
+	FBossDefeatedSignature OnBossDefeated;
 
 protected:
 	virtual void BeginPlay() override;
@@ -27,6 +32,9 @@ private:
 
 	UFUNCTION()
 	void OnSpawnerCleared();
+
+	UFUNCTION()
+	void OnBossDied(AEnemyBase* Enemy);
 
 	bool FindBossSpawnLocation(FVector& OutLocation) const;
 
@@ -47,4 +55,7 @@ private:
 
 	bool bBossFightEnabled = false;
 	bool bBossSpawned = false;
+
+	UPROPERTY()
+	TObjectPtr<AEnemyBase> BossRef = nullptr;
 };

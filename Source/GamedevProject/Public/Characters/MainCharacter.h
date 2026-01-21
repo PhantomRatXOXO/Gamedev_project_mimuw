@@ -20,6 +20,17 @@ public:
 	// Sets default values for this character's properties
 	AMainCharacter();
 
+	// UE damage pipeline entry point.
+	virtual float TakeDamage(
+		float DamageAmount,
+		struct FDamageEvent const& DamageEvent,
+		class AController* EventInstigator,
+		AActor* DamageCauser
+	) override;
+
+	UFUNCTION(BlueprintCallable, Category="Combat")
+	bool IsAlive() const { return Health > 0.f; }
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -71,6 +82,13 @@ protected:
 	/** VFX **/
 	UPROPERTY(EditAnywhere, Category = "VFX")
 	class UNiagaraSystem* DashVFX; // The particle effect asset
+
+	/** COMBAT **/
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
+	float MaxHealth = 100.f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	float Health = 100.f;
 
 private:
 	// This timer handles the cooldown so players can't spam spacebar to fly.

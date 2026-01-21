@@ -36,6 +36,17 @@ void ABossFightActivator::OnSpawnerCleared()
 	bBossFightEnabled = true;
 }
 
+void ABossFightActivator::OnBossDied(AEnemyBase* Enemy)
+{
+	if (!IsValid(Enemy) || Enemy != BossRef)
+	{
+		return;
+	}
+
+	OnBossDefeated.Broadcast();
+	BossRef = nullptr;
+}
+
 bool ABossFightActivator::FindBossSpawnLocation(FVector& OutLocation) const
 {
 	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
@@ -103,5 +114,7 @@ void ABossFightActivator::OnTriggerBeginOverlap(UPrimitiveComponent* OverlappedC
 	if (Boss)
 	{
 		bBossSpawned = true;
+		BossRef = Boss;
+		Boss->OnEnemyDied.AddDynamic(this, &ABossFightActivator::OnBossDied);
 	}
 }

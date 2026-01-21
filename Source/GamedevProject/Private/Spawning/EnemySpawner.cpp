@@ -102,7 +102,7 @@ void AEnemySpawner::DoSpawn()
 	const FRotator SpawnRot = FRotator(0.f, FMath::FRandRange(-180.f, 180.f), 0.f);
 
 	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
 
 	AEnemyBase* Spawned = GetWorld()->SpawnActor<AEnemyBase>(EnemyClass, SpawnLoc, SpawnRot, Params);
 	if (!Spawned)

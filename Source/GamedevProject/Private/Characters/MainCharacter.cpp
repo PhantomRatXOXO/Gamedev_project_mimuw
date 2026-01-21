@@ -7,6 +7,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "NiagaraFunctionLibrary.h" // Required for spawning particles
 #include "TimerManager.h"           // Required for the cooldown timer
+#include "Components/CapsuleComponent.h"
 
 // Sets default values
 AMainCharacter::AMainCharacter()
@@ -51,6 +52,8 @@ void AMainCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	Health = MaxHealth;
+
 	// Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
 	{
@@ -63,6 +66,38 @@ void AMainCharacter::BeginPlay()
 		}
 	}
 }
+
+float AMainCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+{
+	if (Health <= 0.f)
+	{
+		return 0.f;
+	}
+
+	const float Applied = FMath::Max(0.f, DamageAmount);
+	if (Applied <= 0.f)
+	{
+		return 0.f;
+	}
+
+	Health = FMath::Max(0.f, Health - Applied);
+
+	if (Health <= 0.f)
+	{
+		if (AController* C = GetController())
+		{
+			C->StopMovement();
+		}
+		if (UCharacterMovementComponent* Move = GetCharacterMovement())
+		{
+			Move->DisableMovement();
+		}
+		GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+
+	return Applied;
+}
+
 
 // Called to bind functionality to input
 void AMainCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)

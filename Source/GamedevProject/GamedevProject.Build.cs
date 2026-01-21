@@ -19,7 +19,8 @@ public class GamedevProject : ModuleRules
 				"Niagara",
 				"AIModule",
 				"GameplayTasks",
-				"NavigationSystem"
+				"NavigationSystem",
+				"UMG"
 			}
 		);
 
