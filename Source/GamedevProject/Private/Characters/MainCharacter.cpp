@@ -117,22 +117,17 @@ void AMainCharacter::HandleHealthChanged(float CurrentHealth, float InMaxHealth)
 	PlayerHealthWidget->SetHealthPercent(Percent);
 }
 
-
-// Called to bind functionality to input
 void AMainCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
-
-	// Set up action bindings
+	
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent)) {
-
-		// Moving
+		
 		if (MoveAction)
 		{
 			EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AMainCharacter::Move);
 		}
-
-		// Inside SetupPlayerInputComponent...
+		
 		if (DashAction)
 		{
 			EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Triggered, this, &AMainCharacter::Dash);
@@ -147,23 +142,17 @@ void AMainCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 
 void AMainCharacter::Move(const FInputActionValue& Value)
 {
-	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
 
 	if (Controller != nullptr)
 	{
-		// FIX: Use the CAMERA's rotation, not the Controller's!
-		// This ensures "Forward" is always relative to what the player sees.
 		const FRotator Rotation = FollowCamera->GetComponentRotation();
 		const FRotator YawRotation(0, Rotation.Yaw, 0);
-
-		// Get forward vector
+		
 		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-
-		// Get right vector
+		
 		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-
-		// Add movement
+		
 		AddMovementInput(ForwardDirection, MovementVector.Y);
 		AddMovementInput(RightDirection, MovementVector.X);
 	}
@@ -171,28 +160,20 @@ void AMainCharacter::Move(const FInputActionValue& Value)
 
 void AMainCharacter::Dash()
 {
-	// 1. Check Cooldown
 	if (!bCanDash) return;
-
-	// 2. Find Dash Direction
-	// Use the player's last input vector (WASD). 
+	
 	FVector DashDirection = GetLastMovementInputVector();
-
-	// Fallback: If player is standing still (Input is Zero), dash forward
+	
 	if (DashDirection.IsNearlyZero())
 	{
 		DashDirection = GetActorForwardVector();
 	}
-
-	// 3. Apply Physics (The "Launch")
-	// true, true = Override current velocity entirely (crisp movement)
+	
 	LaunchCharacter(DashDirection * DashImpulse, true, true);
 	OnDashStart();
-
-	// 4. Play Particles
+	
 	if (DashVFX)
 	{
-		// Spawns the effect at the character's feet, facing the dash direction
 		UNiagaraFunctionLibrary::SpawnSystemAtLocation(
 			this,
 			DashVFX,
@@ -200,8 +181,7 @@ void AMainCharacter::Dash()
 			GetActorRotation()
 		);
 	}
-
-	// 5. Start Cooldown
+	
 	bCanDash = false;
 	GetWorldTimerManager().SetTimer(DashTimer, this, &AMainCharacter::ResetDash, DashCooldownTime, false);
 }
