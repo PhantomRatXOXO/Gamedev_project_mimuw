@@ -1,7 +1,6 @@
 #include "Spawning/EnemySpawner.h"
 
 #include "Enemies/EnemyBase.h"
-#include "Interfaces/Activatable.h"
 #include "Kismet/GameplayStatics.h"
 #include "NavigationSystem.h"
 #include "TimerManager.h"
@@ -127,11 +126,5 @@ void AEnemySpawner::HandleEnemyDied(AEnemyBase* Enemy)
 	if (TotalSpawned >= MaxTotalSpawned && AliveCount == 0)
 	{
 		OnLevelCleared.Broadcast();
-
-		// Activate the exit gate if assigned and implements IActivatable
-		if (IsValid(ExitGate) && ExitGate->Implements<UActivatable>())
-		{
-			IActivatable::Execute_Activate(ExitGate);
-		}
 	}
 }

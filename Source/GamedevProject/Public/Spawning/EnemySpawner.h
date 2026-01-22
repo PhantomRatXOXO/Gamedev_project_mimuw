@@ -37,10 +37,6 @@ private:
 	UPROPERTY(EditAnywhere, Category="Spawning|Setup")
 	int32 MaxTotalSpawned = 50;
 
-	// Optional: Actor implementing IActivatable to activate when all enemies are dead (e.g., BP_ExitGate)
-	UPROPERTY(EditAnywhere, Category="Spawning|Setup")
-	TObjectPtr<AActor> ExitGate = nullptr;
-
 	UPROPERTY(VisibleAnywhere, Category="Spawning|State")
 	int32 TotalSpawned = 0;
 
