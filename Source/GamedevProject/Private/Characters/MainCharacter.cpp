@@ -1,4 +1,6 @@
 #include "Characters/MainCharacter.h"
+#include "Characters/BaseCharacter.h"
+#include "Enemies/EnemyBase.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -66,9 +68,7 @@ void AMainCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	Health = MaxHealth;
-	OnHealthChanged.AddDynamic(this, &AMainCharacter::HandleHealthChanged);
-
+	// Setup player health widget
 	if (PlayerHealthWidgetComponent && PlayerHealthWidgetClass)
 	{
 		PlayerHealthWidgetComponent->SetWidgetClass(PlayerHealthWidgetClass);
@@ -80,6 +80,8 @@ void AMainCharacter::BeginPlay()
 		}
 	}
 
+	// Bind health changes to UI update
+	OnHealthChanged.AddDynamic(this, &AMainCharacter::HandleHealthChanged);
 	OnHealthChanged.Broadcast(Health, MaxHealth);
 
 	// Add Input Mapping Context
@@ -95,36 +97,13 @@ void AMainCharacter::BeginPlay()
 	}
 }
 
-float AMainCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+void AMainCharacter::Die_Implementation()
 {
-	if (Health <= 0.f)
-	{
-		return 0.f;
-	}
+	// Call base class to handle common death logic
+	Super::Die_Implementation();
 
-	const float Applied = FMath::Max(0.f, DamageAmount);
-	if (Applied <= 0.f)
-	{
-		return 0.f;
-	}
-
-	Health = FMath::Max(0.f, Health - Applied);
-	OnHealthChanged.Broadcast(Health, MaxHealth);
-
-	if (Health <= 0.f)
-	{
-		if (AController* C = GetController())
-		{
-			C->StopMovement();
-		}
-		if (UCharacterMovementComponent* Move = GetCharacterMovement())
-		{
-			Move->DisableMovement();
-		}
-		GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	}
-
-	return Applied;
+	// Player-specific death handling (e.g., game over screen, respawn logic)
+	// Add your game over logic here
 }
 
 void AMainCharacter::HandleHealthChanged(float CurrentHealth, float InMaxHealth)
@@ -236,42 +215,15 @@ void AMainCharacter::Attack()
 
 	bCanAttack = false;
 
-	const FVector Center = GetActorLocation();
-	const float Radius = FMath::Max(AttackRange, AttackHitRadius);
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(PlayerMelee), false, this);
-	FCollisionShape Shape = FCollisionShape::MakeSphere(Radius);
-
-	TArray<FHitResult> Hits;
-	const bool bHit = GetWorld()->SweepMultiByChannel(
-		Hits,
-		Center,
-		Center,
-		FQuat::Identity,
-		AttackHitChannel,
-		Shape,
-		Params
-	);
-
-	UE_LOG(LogTemp, Warning, TEXT("Player Attack (Radial): %s Range=%.1f Radius=%.1f Hit=%d Hits=%d"),
-		*GetName(), AttackRange, Radius, bHit ? 1 : 0, Hits.Num());
-
-	if (bHit)
+	// Play the attack animation - damage will be applied via AnimNotify calling PerformAttackCheck()
+	if (AttackMontage)
 	{
-		for (const FHitResult& Hit : Hits)
-		{
-			AActor* HitActor = Hit.GetActor();
-			if (HitActor && HitActor != this)
-			{
-				UGameplayStatics::ApplyDamage(
-					HitActor,
-					AttackDamage,
-					GetController(),
-					this,
-					UDamageType::StaticClass()
-				);
-				break;
-			}
-		}
+		PlayAnimMontage(AttackMontage);
+	}
+	else
+	{
+		// Fallback: no montage assigned, apply damage immediately (old behavior)
+		PerformAttackCheck();
 	}
 
 	GetWorldTimerManager().ClearTimer(AttackCooldownHandle);
@@ -284,6 +236,60 @@ void AMainCharacter::Attack()
 		AttackCooldown,
 		false
 	);
+}
+
+void AMainCharacter::PerformAttackCheck()
+{
+	// Forward sweep: starts at player, ends in front
+	const FVector Start = GetActorLocation();
+	const FVector End = Start + GetActorForwardVector() * AttackRange;
+
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(PlayerMelee), false, this);
+	FCollisionShape Shape = FCollisionShape::MakeSphere(AttackHitRadius);
+
+	TArray<FHitResult> Hits;
+	const bool bHit = GetWorld()->SweepMultiByChannel(
+		Hits,
+		Start,
+		End,
+		FQuat::Identity,
+		AttackHitChannel,
+		Shape,
+		Params
+	);
+
+	UE_LOG(LogTemp, Warning, TEXT("Player Attack (Forward): Range=%.1f Radius=%.1f Hits=%d"),
+		AttackRange, AttackHitRadius, Hits.Num());
+
+	if (bHit)
+	{
+		// Track which enemies we've already damaged (in case of duplicate hits)
+		TSet<AActor*> DamagedActors;
+
+		for (const FHitResult& Hit : Hits)
+		{
+			AActor* HitActor = Hit.GetActor();
+
+			// Skip if already damaged, not valid, or is self
+			if (!HitActor || HitActor == this || DamagedActors.Contains(HitActor))
+			{
+				continue;
+			}
+
+			// Only damage enemies
+			if (HitActor->IsA(AEnemyBase::StaticClass()))
+			{
+				UGameplayStatics::ApplyDamage(
+					HitActor,
+					AttackDamage,
+					GetController(),
+					this,
+					UDamageType::StaticClass()
+				);
+				DamagedActors.Add(HitActor);
+			}
+		}
+	}
 }
 
 void AMainCharacter::ResetDash()

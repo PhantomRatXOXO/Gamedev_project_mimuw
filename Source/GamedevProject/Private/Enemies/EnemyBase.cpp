@@ -14,9 +14,7 @@
 
 AEnemyBase::AEnemyBase()
 {
-	PrimaryActorTick.bCanEverTick = false;
 	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-
 
 	// Make sure AI possesses both placed and spawned enemies.
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
@@ -43,27 +41,10 @@ AEnemyBase::AEnemyBase()
 void AEnemyBase::BeginPlay()
 {
 	Super::BeginPlay();
-	Health = MaxHealth;
 	SetupHealthWidget();
+	// Bind health changes to UI update
+	OnHealthChanged.AddDynamic(this, &AEnemyBase::HandleHealthChanged);
 	OnHealthChanged.Broadcast(Health, MaxHealth);
-}
-
-float AEnemyBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
-{
-	if (!IsAlive())
-	{
-		return 0.f;
-	}
-
-	const float Applied = FMath::Max(0.f, DamageAmount);
-	Health = FMath::Max(0.f, Health - Applied);
-	OnHealthChanged.Broadcast(Health, MaxHealth);
-
-	if (Health <= 0.f)
-	{
-		Die();
-	}
-	return Applied;
 }
 
 void AEnemyBase::HandleHealthChanged(float CurrentHealth, float InMaxHealth)
@@ -78,19 +59,30 @@ void AEnemyBase::HandleHealthChanged(float CurrentHealth, float InMaxHealth)
 	}
 }
 
-void AEnemyBase::Die()
+void AEnemyBase::Die_Implementation()
 {
-	// Stop movement and collisions, then destroy.
-	if (AController* C = GetController())
-	{
-		C->StopMovement();
-	}
+	// Call base class to handle common death logic (stop movement, disable collision, play death montage)
+	Super::Die_Implementation();
 
-	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-
+	// Enemy-specific: notify spawner
 	OnEnemyDied.Broadcast(this);
 
-	Destroy();
+	// Destroy after a short delay if death montage is playing, otherwise immediately
+	if (DeathMontage)
+	{
+		const float MontageLength = DeathMontage->GetPlayLength();
+		FTimerHandle DestroyHandle;
+		GetWorldTimerManager().SetTimer(
+			DestroyHandle,
+			[this]() { Destroy(); },
+			MontageLength,
+			false
+		);
+	}
+	else
+	{
+		Destroy();
+	}
 }
 
 void AEnemyBase::TryAttack(AActor* TargetActor)

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Character.h"
+#include "Characters/BaseCharacter.h"
 #include "InputActionValue.h"
 #include "MainCharacter.generated.h"
 
@@ -15,46 +15,21 @@ class UHealthBarWidget;
 class UWidgetComponent;
 
 UCLASS(Blueprintable)
-class GAMEDEVPROJECT_API AMainCharacter : public ACharacter
+class GAMEDEVPROJECT_API AMainCharacter : public ABaseCharacter
 {
 	GENERATED_BODY()
 
 public:
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FPlayerHealthChangedSignature, float, CurrentHealth, float, MaxHealth);
-
-
-	// Sets default values for this character's properties
 	AMainCharacter();
 
-	// UE damage pipeline entry point.
-	virtual float TakeDamage(
-		float DamageAmount,
-		struct FDamageEvent const& DamageEvent,
-		class AController* EventInstigator,
-		AActor* DamageCauser
-	) override;
-
-	UFUNCTION(BlueprintCallable, Category="Combat")
-	bool IsAlive() const { return Health > 0.f; }
-
-	UFUNCTION(BlueprintCallable, Category="Combat")
-	float GetHealth() const { return Health; }
-
-	UFUNCTION(BlueprintCallable, Category="Combat")
-	float GetMaxHealth() const { return MaxHealth; }
-
-	UFUNCTION(BlueprintCallable, Category="Combat")
-	float GetHealthPercent() const { return MaxHealth > 0.f ? (Health / MaxHealth) : 0.f; }
-
-	UPROPERTY(BlueprintAssignable, Category="Combat|Events")
-	FPlayerHealthChangedSignature OnHealthChanged;
-
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-	UFUNCTION()
-	void HandleHealthChanged(float CurrentHealth, float MaxHealth);
+	// Override to handle player-specific death (game over, etc.)
+	virtual void Die_Implementation() override;
+
+	// Override to update player health bar UI
+	virtual void HandleHealthChanged(float CurrentHealth, float InMaxHealth) override;
 
 	/** Called for movement input */
 	void Move(const FInputActionValue& Value);
@@ -115,12 +90,14 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
 	TObjectPtr<UWidgetComponent> PlayerHealthWidgetComponent = nullptr;
 
-	/** COMBAT **/
+	/** ATTACK MONTAGE **/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
-	float MaxHealth = 100.f;
+	UAnimMontage* AttackMontage = nullptr;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
-	float Health = 100.f;
+public:
+	// Called from AnimNotify in the attack montage to apply damage
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void PerformAttackCheck();
 
 private:
 	void Attack();
