@@ -8,11 +8,15 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "CollisionShape.h"
+#include "Components/WidgetComponent.h"
+#include "UI/HealthBarWidget.h"
 
 
 AEnemyBase::AEnemyBase()
 {
 	PrimaryActorTick.bCanEverTick = false;
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+
 
 	// Make sure AI possesses both placed and spawned enemies.
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
@@ -26,12 +30,22 @@ AEnemyBase::AEnemyBase()
 		Move->MaxWalkSpeed = 250.f;
 	}
 	bUseControllerRotationYaw = false;
+
+	HealthWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("HealthWidget"));
+	HealthWidgetComponent->SetupAttachment(RootComponent);
+	HealthWidgetComponent->SetWidgetSpace(EWidgetSpace::Screen);
+	HealthWidgetComponent->SetDrawSize(FVector2D(120.f, 12.f));
+	HealthWidgetComponent->SetRelativeLocation(FVector(0.f, 0.f, 120.f));
+	HealthWidgetComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HealthWidgetComponent->SetGenerateOverlapEvents(false);
 }
 
 void AEnemyBase::BeginPlay()
 {
 	Super::BeginPlay();
 	Health = MaxHealth;
+	SetupHealthWidget();
+	OnHealthChanged.Broadcast(Health, MaxHealth);
 }
 
 float AEnemyBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
@@ -42,13 +56,26 @@ float AEnemyBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent
 	}
 
 	const float Applied = FMath::Max(0.f, DamageAmount);
-	Health -= Applied;
+	Health = FMath::Max(0.f, Health - Applied);
+	OnHealthChanged.Broadcast(Health, MaxHealth);
 
 	if (Health <= 0.f)
 	{
 		Die();
 	}
 	return Applied;
+}
+
+void AEnemyBase::HandleHealthChanged(float CurrentHealth, float InMaxHealth)
+{
+	if (HealthWidgetComponent)
+	{
+		if (UHealthBarWidget* Widget = Cast<UHealthBarWidget>(HealthWidgetComponent->GetUserWidgetObject()))
+		{
+			const float Percent = InMaxHealth > 0.f ? (CurrentHealth / InMaxHealth) : 0.f;
+			Widget->SetHealthPercent(Percent);
+		}
+	}
 }
 
 void AEnemyBase::Die()
@@ -183,4 +210,21 @@ void AEnemyBase::DealMeleeDamage()
 			break;
 		}
 	}
+}
+
+void AEnemyBase::SetupHealthWidget()
+{
+	if (!HealthWidgetComponent)
+	{
+		return;
+	}
+
+	if (EnemyHealthWidgetClass)
+	{
+		HealthWidgetComponent->SetWidgetClass(EnemyHealthWidgetClass);
+		HealthWidgetComponent->InitWidget();
+	}
+
+	OnHealthChanged.AddDynamic(this, &AEnemyBase::HandleHealthChanged);
+	HandleHealthChanged(Health, MaxHealth);
 }

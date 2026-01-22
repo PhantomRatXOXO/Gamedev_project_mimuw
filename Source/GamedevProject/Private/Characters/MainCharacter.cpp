@@ -8,6 +8,12 @@
 #include "NiagaraFunctionLibrary.h" // Required for spawning particles
 #include "TimerManager.h"           // Required for the cooldown timer
 #include "Components/CapsuleComponent.h"
+#include "UI/HealthBarWidget.h"
+#include "Components/WidgetComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "CollisionShape.h"
+#include "GameFramework/DamageType.h"
+#include "Engine/EngineTypes.h"
 
 // Sets default values
 AMainCharacter::AMainCharacter()
@@ -34,7 +40,7 @@ AMainCharacter::AMainCharacter()
 
 	// --- HADES VIEW SETTINGS ---
 	CameraBoom->TargetArmLength = 1500.0f; // The distance from the character
-	CameraBoom->SetRelativeRotation(FRotator(-50.f, 45.f, 0.f)); // Look down at 50 degrees, rotated 45 degrees to the right
+	CameraBoom->SetRelativeRotation(FRotator(-50.f, 225.f, 0.f)); // Look down at 50 degrees, rotated 180 degrees from previous view
 	CameraBoom->bUsePawnControlRotation = false; // Do not rotate camera with mouse
 	CameraBoom->bDoCollisionTest = false; // Don't pull camera in when hitting walls (better for top-down)
 	CameraBoom->bInheritPitch = false;
@@ -45,6 +51,14 @@ AMainCharacter::AMainCharacter()
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
 	FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
+
+	PlayerHealthWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("PlayerHealthWidget"));
+	PlayerHealthWidgetComponent->SetupAttachment(RootComponent);
+	PlayerHealthWidgetComponent->SetWidgetSpace(EWidgetSpace::Screen);
+	PlayerHealthWidgetComponent->SetDrawSize(FVector2D(160.f, 14.f));
+	PlayerHealthWidgetComponent->SetRelativeLocation(FVector(0.f, 0.f, 120.f));
+	PlayerHealthWidgetComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	PlayerHealthWidgetComponent->SetGenerateOverlapEvents(false);
 }
 
 // Called when the game starts or when spawned
@@ -53,6 +67,20 @@ void AMainCharacter::BeginPlay()
 	Super::BeginPlay();
 
 	Health = MaxHealth;
+	OnHealthChanged.AddDynamic(this, &AMainCharacter::HandleHealthChanged);
+
+	if (PlayerHealthWidgetComponent && PlayerHealthWidgetClass)
+	{
+		PlayerHealthWidgetComponent->SetWidgetClass(PlayerHealthWidgetClass);
+		PlayerHealthWidgetComponent->InitWidget();
+		PlayerHealthWidget = Cast<UHealthBarWidget>(PlayerHealthWidgetComponent->GetUserWidgetObject());
+		if (PlayerHealthWidget)
+		{
+			PlayerHealthWidget->SetHealthPercent(GetHealthPercent());
+		}
+	}
+
+	OnHealthChanged.Broadcast(Health, MaxHealth);
 
 	// Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
@@ -81,6 +109,7 @@ float AMainCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageE
 	}
 
 	Health = FMath::Max(0.f, Health - Applied);
+	OnHealthChanged.Broadcast(Health, MaxHealth);
 
 	if (Health <= 0.f)
 	{
@@ -96,6 +125,17 @@ float AMainCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageE
 	}
 
 	return Applied;
+}
+
+void AMainCharacter::HandleHealthChanged(float CurrentHealth, float InMaxHealth)
+{
+	if (!PlayerHealthWidget)
+	{
+		return;
+	}
+
+	const float Percent = InMaxHealth > 0.f ? (CurrentHealth / InMaxHealth) : 0.f;
+	PlayerHealthWidget->SetHealthPercent(Percent);
 }
 
 
@@ -117,6 +157,11 @@ void AMainCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 		if (DashAction)
 		{
 			EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Triggered, this, &AMainCharacter::Dash);
+		}
+
+		if (AttackAction)
+		{
+			EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &AMainCharacter::Attack);
 		}
 	}
 }
@@ -180,6 +225,65 @@ void AMainCharacter::Dash()
 	// 5. Start Cooldown
 	bCanDash = false;
 	GetWorldTimerManager().SetTimer(DashTimer, this, &AMainCharacter::ResetDash, DashCooldownTime, false);
+}
+
+void AMainCharacter::Attack()
+{
+	if (!IsAlive() || !bCanAttack)
+	{
+		return;
+	}
+
+	bCanAttack = false;
+
+	const FVector Center = GetActorLocation();
+	const float Radius = FMath::Max(AttackRange, AttackHitRadius);
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(PlayerMelee), false, this);
+	FCollisionShape Shape = FCollisionShape::MakeSphere(Radius);
+
+	TArray<FHitResult> Hits;
+	const bool bHit = GetWorld()->SweepMultiByChannel(
+		Hits,
+		Center,
+		Center,
+		FQuat::Identity,
+		AttackHitChannel,
+		Shape,
+		Params
+	);
+
+	UE_LOG(LogTemp, Warning, TEXT("Player Attack (Radial): %s Range=%.1f Radius=%.1f Hit=%d Hits=%d"),
+		*GetName(), AttackRange, Radius, bHit ? 1 : 0, Hits.Num());
+
+	if (bHit)
+	{
+		for (const FHitResult& Hit : Hits)
+		{
+			AActor* HitActor = Hit.GetActor();
+			if (HitActor && HitActor != this)
+			{
+				UGameplayStatics::ApplyDamage(
+					HitActor,
+					AttackDamage,
+					GetController(),
+					this,
+					UDamageType::StaticClass()
+				);
+				break;
+			}
+		}
+	}
+
+	GetWorldTimerManager().ClearTimer(AttackCooldownHandle);
+	GetWorldTimerManager().SetTimer(
+		AttackCooldownHandle,
+		[this]()
+		{
+			bCanAttack = true;
+		},
+		AttackCooldown,
+		false
+	);
 }
 
 void AMainCharacter::ResetDash()
