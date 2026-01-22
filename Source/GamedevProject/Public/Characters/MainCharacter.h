@@ -90,6 +90,14 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
 	TObjectPtr<UWidgetComponent> PlayerHealthWidgetComponent = nullptr;
 
+	// Widget shown when player dies (game over screen)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<UUserWidget> GameOverWidgetClass;
+
+	// Delay before showing game over screen (for death animation)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+	float GameOverDelay = 2.0f;
+
 	/** ATTACK MONTAGE **/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
 	UAnimMontage* AttackMontage = nullptr;
