@@ -102,8 +102,26 @@ void AMainCharacter::Die_Implementation()
 	// Call base class to handle common death logic
 	Super::Die_Implementation();
 
-	// Player-specific death handling (e.g., game over screen, respawn logic)
-	// Add your game over logic here
+	// Show game over screen after delay (for death animation)
+	if (GameOverWidgetClass)
+	{
+		FTimerHandle GameOverHandle;
+		GetWorldTimerManager().SetTimer(
+			GameOverHandle,
+			[this]()
+			{
+				if (APlayerController* PC = Cast<APlayerController>(GetController()))
+				{
+					if (UUserWidget* GameOverWidget = CreateWidget<UUserWidget>(PC, GameOverWidgetClass))
+					{
+						GameOverWidget->AddToViewport(100);
+					}
+				}
+			},
+			GameOverDelay,
+			false
+		);
+	}
 }
 
 void AMainCharacter::HandleHealthChanged(float CurrentHealth, float InMaxHealth)
